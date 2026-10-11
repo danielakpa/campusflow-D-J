@@ -29,6 +29,9 @@ def assign_staff(tickets, ticket_id, staff_name):
     # Remove unnecessary spaces around the staff member's name.
     ticket["assigned_to"] = staff_name.strip()
 
+    # Automatically start the ticket when staff is assigned.
+    ticket["status"] = "in_progress"
+
     # Return the updated ticket.
     return ticket
 

@@ -7,7 +7,7 @@
         "affected_users": 23,
         "priority": "high",
         "status": "resolved",
-        "assigned_to": "ddod"
+        "assigned_to": "da"
     },
     {
         "id": "T002",
@@ -26,7 +26,27 @@
         "urgency": "high",
         "affected_users": 44,
         "priority": "critical",
-        "status": "open",
-        "assigned_to": null
+        "status": "resolved",
+        "assigned_to": "Elon Musk"
+    },
+    {
+        "id": "T004",
+        "title": "slow internet speed",
+        "category": "Other",
+        "urgency": "medium",
+        "affected_users": 3,
+        "priority": "medium",
+        "status": "in_progress",
+        "assigned_to": "janai"
+    },
+    {
+        "id": "T005",
+        "title": "good",
+        "category": "Network",
+        "urgency": "high",
+        "affected_users": 33,
+        "priority": "critical",
+        "status": "resolved",
+        "assigned_to": "ada"
     }
 ]

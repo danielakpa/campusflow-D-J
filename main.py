@@ -42,7 +42,7 @@ def create_new_ticket(tickets):
 
         print("Error: Ticket title cannot be empty. Please try again.")
 
-    # Let the user select a valid category.
+    # Let the user select a category.
     category_options = {
         "1": "Network",
         "2": "Hardware",
@@ -61,9 +61,29 @@ def create_new_ticket(tickets):
 
         if category_choice in category_options:
             category = category_options[category_choice]
+
+            # If the user selects Other, ask for a custom category.
+            if category == "Other":
+                while True:
+                    custom_category = input(
+                        "Enter your category: "
+                    ).strip()
+
+                    if custom_category:
+                        category = custom_category
+                        break
+
+                    print(
+                        "Error: Category cannot be empty. "
+                        "Please try again."
+                    )
+
             break
 
-        print("Error: Invalid category. Please choose an option from 1 to 4.")
+        print(
+            "Error: Invalid category. "
+            "Please choose an option from 1 to 4."
+        )
 
     # Let the user select a valid urgency.
     urgency_options = {
@@ -169,6 +189,7 @@ def assign_ticket_to_staff(tickets):
         )
         print(f"Title: {ticket['title']}")
         print(f"Category: {ticket['category']}")
+        print(f"Affected users: {ticket['affected_users']}")
         print(f"Assigned to: {ticket['assigned_to'] or 'Not assigned'}")
 
     # Keep asking until the administrator selects a valid ticket.
@@ -186,6 +207,7 @@ def assign_ticket_to_staff(tickets):
         ticket_id = ticket_id.upper()
 
         # Find the selected ticket without considering letter case.
+        # Find the selected ticket without considering letter case.
         selected_ticket = next(
             (
                 ticket
@@ -195,12 +217,28 @@ def assign_ticket_to_staff(tickets):
             None,
         )
 
-        # If the ID does not exist, ask again.
+        # If the ID does not exist, display available tickets again.
         if selected_ticket is None:
             print(
-                "Error: Ticket ID not found. "
-                "Please enter an existing ticket ID."
+                "\nError: Ticket ID not found. "
+                "Please select an available ticket."
             )
+
+            print("\nAVAILABLE TICKETS")
+
+            for ticket in sorted_tickets:
+                print(
+                    f"\nID: {ticket['id']} | "
+                    f"Priority: {ticket['priority'].upper()} | "
+                    f"Status: {ticket['status']}"
+                )
+                print(f"Title: {ticket['title']}")
+                print(f"Affected users: {ticket['affected_users']}")
+                print(
+                    f"Assigned to: "
+                    f"{ticket['assigned_to'] or 'Not assigned'}"
+                )
+
             continue
 
         # Resolved tickets cannot be assigned until reopened.
@@ -281,6 +319,7 @@ def change_ticket_status(tickets):
             f"Status: {ticket['status']}"
         )
         print(f"Title: {ticket['title']}")
+        print(f"Affected users: {ticket['affected_users']}")
         print(f"Assigned to: {ticket['assigned_to'] or 'Not assigned'}")
 
     # Keep asking until the administrator selects a valid ticket.
@@ -306,40 +345,78 @@ def change_ticket_status(tickets):
             None,
         )
 
+        # If the ticket does not exist, display available tickets again.
         if selected_ticket is None:
             print(
-                "Error: Ticket ID not found. "
-                "Please enter an existing ticket ID."
+                "\nError: Ticket ID not found. "
+                "Please select an available ticket."
             )
+
+            print("\nAVAILABLE TICKETS")
+
+            for ticket in sorted_tickets:
+                print(
+                    f"\nID: {ticket['id']} | "
+                    f"Priority: {ticket['priority'].upper()} | "
+                    f"Status: {ticket['status']}"
+                )
+                print(f"Title: {ticket['title']}")
+                print(f"Affected users: {ticket['affected_users']}")
+                print(
+                    f"Assigned to: "
+                    f"{ticket['assigned_to'] or 'Not assigned'}"
+                )
+
             continue
 
+        # A valid ticket has been selected.
         break
 
-    # Display the available status choices.
-    status_options = {
-        "1": "open",
-        "2": "in_progress",
-        "3": "resolved",
-    }
 
+
+       # Show status options based on the ticket's current status.
+    if selected_ticket["status"] == "resolved":
+        status_options = {
+            "1": "open",
+        }
+
+    elif selected_ticket["status"] == "in_progress":
+        status_options = {
+            "1": "resolved",
+        }
+
+    else:
+        status_options = {}
+
+    # Do not offer status changes for unassigned open tickets.
+    if selected_ticket["status"] == "open":
+        if not selected_ticket["assigned_to"]:
+            print("\nThis ticket has not been assigned to staff yet.")
+            print("Assign a staff member first to start working on it.")
+            return
+
+        # An open ticket that already has an assignee can be started.
+        status_options = {
+            "1": "in_progress",
+        }
+
+    # Display the available status choices.
     while True:
         print("\nChoose the new status:")
-        print("1. Open")
-        print("2. In Progress")
-        print("3. Resolved")
+
+        for number, status in status_options.items():
+            print(f"{number}. {status.replace('_', ' ').title()}")
+
         print("0. Cancel")
 
-        status_choice = input("Enter your choice (0-3): ").strip()
+        status_choice = input("Enter your choice: ").strip()
 
         if status_choice == "0":
             print("Status update cancelled.")
             return
 
         if status_choice not in status_options:
-            print(
-                "Error: Invalid choice. "
-                "Please select an option from 0 to 3."
-            )
+            print("Error: Invalid choice. Please try again.")
             continue
 
         new_status = status_options[status_choice]
@@ -364,7 +441,6 @@ def change_ticket_status(tickets):
         except ValueError as error:
             print(f"\nError: {error}")
             print("Please choose a valid status for this ticket.")
-
 
 def show_unresolved_queue(tickets):
     """Display unresolved tickets in priority order."""
