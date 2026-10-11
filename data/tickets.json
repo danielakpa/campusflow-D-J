@@ -1,0 +1,32 @@
+[
+    {
+        "id": "T001",
+        "title": "my system battery is bad",
+        "category": "Hardware",
+        "urgency": "medium",
+        "affected_users": 23,
+        "priority": "high",
+        "status": "resolved",
+        "assigned_to": "ddod"
+    },
+    {
+        "id": "T002",
+        "title": "ggg",
+        "category": "Hardware",
+        "urgency": "high",
+        "affected_users": 44,
+        "priority": "critical",
+        "status": "open",
+        "assigned_to": null
+    },
+    {
+        "id": "T003",
+        "title": "sdfsdf",
+        "category": "Other",
+        "urgency": "high",
+        "affected_users": 44,
+        "priority": "critical",
+        "status": "open",
+        "assigned_to": null
+    }
+]
