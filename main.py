@@ -1,5 +1,6 @@
 """Main entry point for the CampusFlow helpdesk application."""
 
+import json
 from pathlib import Path
 
 from campusflow.tickets import create_ticket
@@ -9,7 +10,11 @@ from campusflow.workflow import (
     update_status,
 )
 from campusflow.reports import generate_report
-from campusflow.storage import load_tickets, save_tickets
+from campusflow.storage import (
+    load_tickets,
+    save_tickets,
+    repair_ticket_data,
+)
 
 
 # Store tickets in the data folder inside the project.
@@ -34,16 +39,12 @@ def display_ticket(ticket):
 def create_new_ticket(tickets):
     """Create a ticket after validating the user's input."""
 
-    # Ask for a non-empty title.
     while True:
         title = input("\nEnter ticket title: ").strip()
-
         if title:
             break
-
         print("Error: Ticket title cannot be empty. Please try again.")
 
-    # Let the user select a category.
     category_options = {
         "1": "Network",
         "2": "Hardware",
@@ -65,22 +66,15 @@ def create_new_ticket(tickets):
 
             if category == "Other":
                 while True:
-                    custom_category = input("Enter your category: ").strip()
-
-                    if custom_category:
-                        category = custom_category
+                    category = input("Enter your category: ").strip()
+                    if category:
                         break
-
-                    print(
-                        "Error: Category cannot be empty. "
-                        "Please try again."
-                    )
+                    print("Error: Category cannot be empty. Please try again.")
 
             break
 
         print("Error: Invalid category. Please choose an option from 1 to 4.")
 
-    # Let the user select a valid urgency.
     urgency_options = {
         "1": "low",
         "2": "medium",
@@ -101,28 +95,22 @@ def create_new_ticket(tickets):
 
         print("Error: Invalid urgency. Please choose an option from 1 to 3.")
 
-    # Accept only a positive whole number, not a decimal or text.
     while True:
         affected_users_input = input(
             "\nEnter the number of affected users: "
         ).strip()
 
         try:
-            # Reject values such as 2.5, empty input, and ordinary text.
             affected_users = int(affected_users_input)
 
             if affected_users > 0:
                 break
 
-            print(
-                "Error: The number of affected users "
-                "must be greater than zero."
-            )
+            print("Error: The number of affected users must be greater than zero.")
 
         except ValueError:
             print("Error: Please enter a valid whole number, such as 5.")
 
-    # Create and save the ticket only after the inputs are valid.
     try:
         ticket = create_ticket(
             tickets,
@@ -149,7 +137,6 @@ def list_tickets(tickets):
         return
 
     print("\nALL TICKETS")
-
     for ticket in tickets:
         display_ticket(ticket)
 
@@ -190,7 +177,6 @@ def assign_ticket_to_staff(tickets):
         print(f"Affected users: {ticket['affected_users']}")
         print(f"Assigned to: {ticket['assigned_to'] or 'Not assigned'}")
 
-    # Select an existing ticket.
     while True:
         ticket_id = input(
             "\nEnter ticket ID to assign staff (or 0 to cancel): "
@@ -212,22 +198,15 @@ def assign_ticket_to_staff(tickets):
         )
 
         if selected_ticket is None:
-            print(
-                "\nError: Ticket ID not found. "
-                "Please select an available ticket."
-            )
+            print("Error: Ticket ID not found. Please select an available ticket.")
             continue
 
         if selected_ticket["status"] == "resolved":
-            print(
-                "Error: This ticket is resolved. "
-                "Reopen it before assigning staff."
-            )
+            print("Error: This ticket is resolved. Reopen it before assigning staff.")
             continue
 
         break
 
-    # Ask for a staff member's name.
     while True:
         staff_name = input(
             "Enter the staff member's name (or 0 to cancel): "
@@ -243,12 +222,7 @@ def assign_ticket_to_staff(tickets):
         print("Error: Staff name cannot be empty. Please try again.")
 
     try:
-        ticket = assign_staff(
-            tickets,
-            selected_ticket["id"],
-            staff_name,
-        )
-
+        ticket = assign_staff(tickets, selected_ticket["id"], staff_name)
         save_tickets(tickets, DATA_FILE)
 
         print(
@@ -294,7 +268,6 @@ def change_ticket_status(tickets):
         print(f"Affected users: {ticket['affected_users']}")
         print(f"Assigned to: {ticket['assigned_to'] or 'Not assigned'}")
 
-    # Select an existing ticket.
     while True:
         ticket_id = input(
             "\nEnter ticket ID to update (or 0 to cancel): "
@@ -316,24 +289,16 @@ def change_ticket_status(tickets):
         )
 
         if selected_ticket is None:
-            print(
-                "\nError: Ticket ID not found. "
-                "Please select an available ticket."
-            )
+            print("Error: Ticket ID not found. Please select an available ticket.")
             continue
 
         break
 
-    # Only offer status changes allowed by the current workflow.
     if selected_ticket["status"] == "resolved":
-        status_options = {
-            "1": "open",
-        }
+        status_options = {"1": "open"}
 
     elif selected_ticket["status"] == "in_progress":
-        status_options = {
-            "1": "resolved",
-        }
+        status_options = {"1": "resolved"}
 
     else:
         if not selected_ticket["assigned_to"]:
@@ -341,17 +306,13 @@ def change_ticket_status(tickets):
             print("Assign a staff member first to start working on it.")
             return
 
-        status_options = {
-            "1": "in_progress",
-        }
+        status_options = {"1": "in_progress"}
 
-    # Select and apply the new status.
     while True:
         print("\nChoose the new status:")
 
         for number, status in status_options.items():
-            display_status = status.replace("_", " ").title()
-            print(f"{number}. {display_status}")
+            print(f"{number}. {status.replace('_', ' ').title()}")
 
         print("0. Cancel")
 
@@ -365,13 +326,11 @@ def change_ticket_status(tickets):
             print("Error: Invalid choice. Please try again.")
             continue
 
-        new_status = status_options[status_choice]
-
         try:
             ticket = update_status(
                 tickets,
                 selected_ticket["id"],
-                new_status,
+                status_options[status_choice],
             )
 
             save_tickets(tickets, DATA_FILE)
@@ -441,20 +400,65 @@ def show_menu():
     print("================================")
 
 
+def load_tickets_for_application():
+    """Load tickets and offer interactive repair only during app startup."""
+
+    try:
+        return load_tickets(DATA_FILE)
+
+    except ValueError as error:
+        print(f"\nCould not load saved tickets: {error}")
+
+    answer = input(
+        "\nWould you like to attempt to repair the saved data? (y/n): "
+    ).strip().lower()
+
+    if answer != "y":
+        print("CampusFlow stopped. The saved file was not changed.")
+        return None
+
+    try:
+        # Read the original file without changing it.
+        with DATA_FILE.open("r", encoding="utf-8") as file:
+            content = file.read()
+
+        if not content.strip():
+            return []
+
+        tickets = json.loads(content)
+
+        if not isinstance(tickets, list):
+            print("Repair failed: The saved data must be a JSON list.")
+            return None
+
+        repaired_tickets = repair_ticket_data(tickets)
+
+        if repaired_tickets is None:
+            return None
+
+        # Validate and save only after the repair succeeds.
+        save_tickets(repaired_tickets, DATA_FILE)
+
+        print("\nSaved ticket data repaired successfully!")
+        return repaired_tickets
+
+    except (ValueError, OSError, json.JSONDecodeError) as error:
+        print(f"\nRepair failed: {error}")
+        print("The saved file was not intentionally changed.")
+        return None
+
+
 def main():
     """Load saved tickets and run the application menu."""
 
     try:
-        tickets = load_tickets(DATA_FILE)
+        tickets = load_tickets_for_application()
 
-        # Protect against a missing return value from the loader.
-        # The loader should ideally return [] for an empty file.
-        if tickets is None:
-            tickets = []
+    except OSError as error:
+        print(f"Could not access saved tickets: {error}")
+        return
 
-    except (ValueError, OSError) as error:
-        print(f"Could not load tickets: {error}")
-        print("Please check the saved data before restarting CampusFlow.")
+    if tickets is None:
         return
 
     print("Welcome to CampusFlow!")

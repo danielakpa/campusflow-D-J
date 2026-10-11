@@ -123,93 +123,76 @@ def save_tickets(tickets, file_path):
         json.dump(tickets, file, indent=4)
 
 def repair_ticket_data(tickets):
-    """Allow users to correct invalid affected_users values."""
+    """Let a user correct invalid affected_users values interactively."""
 
-    for index, ticket in enumerate(tickets):
-        # Skip entries that are not ticket dictionaries.
+    for ticket in tickets:
         if not isinstance(ticket, dict):
             continue
 
         affected_users = ticket.get("affected_users")
 
-        # A valid value must be an integer, not a boolean, and greater than zero.
-        if (
-            type(affected_users) is int
-            and affected_users > 0
-        ):
+        # Skip values that are already valid positive integers.
+        if type(affected_users) is int and affected_users > 0:
             continue
 
         print(f"\nTicket ID: {ticket.get('id', 'Unknown')}")
         print(f"Invalid affected_users value: {affected_users!r}")
 
         while True:
-            correction = input(
-                "Enter the correct number of affected users "
-                "(or type 'skip' to stop): "
+            answer = input(
+                "Enter a positive whole number for affected users "
+                "(or type 'skip' to cancel): "
             ).strip()
 
-            if correction.lower() == "skip":
-                raise ValueError(
-                    "Ticket repair cancelled. Your saved file was not changed."
-                )
+            if answer.lower() == "skip":
+                print("Repair cancelled. The saved file was not changed.")
+                return None
 
             try:
-                corrected_number = int(correction)
+                corrected_value = int(answer)
             except ValueError:
-                print("Invalid input. Please enter a whole number.")
+                print("Error: Enter a valid whole number, such as 5.")
                 continue
 
-            if corrected_number <= 0:
-                print("The number must be greater than zero.")
+            if corrected_value <= 0:
+                print("Error: The number must be greater than zero.")
                 continue
 
-            # Replace the incorrect value with the corrected integer.
-            tickets[index]["affected_users"] = corrected_number
+            ticket["affected_users"] = corrected_value
             break
 
-    # Validate every field before allowing the corrected data to be saved.
+    # Confirm that all ticket data is valid before returning it.
     validate_ticket_data(tickets)
 
     return tickets
 
 def load_tickets(file_path):
-    """Load and validate tickets from JSON."""
-
+    """Load and validate tickets without modifying the saved file."""
     path = Path(file_path)
 
-    # If the file does not exist, start with an empty ticket list.
+    # A missing file means there are no saved tickets yet.
     if not path.exists():
         return []
 
     try:
-        # Open the file and read its contents.
         with path.open("r", encoding="utf-8") as file:
             content = file.read()
 
-        # If the file is empty or contains only spaces, return no tickets.
-        if not content.strip():
-            return []
+    except OSError:
+        raise
 
-        # Convert the JSON text into Python data.
+    # An empty file starts with an empty ticket list.
+    if not content.strip():
+        return []
+
+    try:
         tickets = json.loads(content)
-
     except json.JSONDecodeError as error:
-        # Do not overwrite a file containing invalid JSON.
         raise ValueError(
-            f"Cannot load tickets: {path} contains invalid JSON "
-            f"at line {error.lineno}, column {error.colno}."
+            f"Cannot load tickets: {path} contains invalid JSON."
         ) from error
 
-    except OSError as error:
-        raise ValueError(
-            f"Cannot read ticket file {path}: {error}"
-        ) from error
+    # Reject invalid data instead of asking questions during loading.
+    validate_ticket_data(tickets)
 
-           # Repair invalid affected_users values.
-    repair_ticket_data(tickets)
-
-    # Save the corrected data.
-    save_tickets(tickets, path)
-
-    # Return the loaded tickets.
     return tickets
