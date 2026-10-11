@@ -54,24 +54,14 @@ class TestTicketStatus(unittest.TestCase):
             4,
         )
 
-    def test_cannot_start_unassigned_ticket(self):
-        with self.assertRaises(ValueError):
-            update_status(self.tickets, "T001", "in_progress")
+    def test_assigning_staff_automatically_starts_work(self):
+        ticket = assign_staff(self.tickets, "T001", "Ada")
 
-    def test_assigned_ticket_can_start_work(self):
-        assign_staff(self.tickets, "T001", "Ada")
-
-        ticket = update_status(
-            self.tickets,
-            "T001",
-            "in_progress",
-        )
-
+        self.assertEqual(ticket["assigned_to"], "Ada")
         self.assertEqual(ticket["status"], "in_progress")
 
     def test_in_progress_ticket_can_be_resolved(self):
         assign_staff(self.tickets, "T001", "Ada")
-        update_status(self.tickets, "T001", "in_progress")
 
         ticket = update_status(self.tickets, "T001", "resolved")
 
@@ -79,7 +69,6 @@ class TestTicketStatus(unittest.TestCase):
 
     def test_resolved_ticket_can_be_reopened(self):
         assign_staff(self.tickets, "T001", "Ada")
-        update_status(self.tickets, "T001", "in_progress")
         update_status(self.tickets, "T001", "resolved")
 
         ticket = update_status(self.tickets, "T001", "open")
@@ -88,7 +77,6 @@ class TestTicketStatus(unittest.TestCase):
 
     def test_resolved_ticket_cannot_be_assigned(self):
         assign_staff(self.tickets, "T001", "Ada")
-        update_status(self.tickets, "T001", "in_progress")
         update_status(self.tickets, "T001", "resolved")
 
         with self.assertRaises(ValueError):
@@ -120,7 +108,6 @@ class TestUnresolvedQueue(unittest.TestCase):
 
         # Resolved tickets should not appear in the queue.
         assign_staff(tickets, "T001", "Ada")
-        update_status(tickets, "T001", "in_progress")
         update_status(tickets, "T001", "resolved")
 
         queue = get_unresolved_queue(tickets)

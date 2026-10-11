@@ -44,7 +44,6 @@ class TestReports(unittest.TestCase):
 
         # Resolve the first ticket.
         assign_staff(self.tickets, "T001", "Ada")
-        update_status(self.tickets, "T001", "in_progress")
         update_status(self.tickets, "T001", "resolved")
 
     def test_total_ticket_count(self):
