@@ -4,43 +4,212 @@ import json
 from pathlib import Path
 
 
-def save_tickets(tickets, file_path):
-    """Save tickets to a JSON file."""
+def validate_ticket_data(tickets):
+    """Check that every ticket has valid fields, types, and values."""
 
-    # Convert the file path into a Path object.
+    # The saved data must be a list.
+    if not isinstance(tickets, list):
+        raise ValueError("Invalid ticket data: expected a JSON list.")
+
+    errors = []
+
+    # Define the fields and their expected Python types.
+    required_fields = {
+        "id": str,
+        "title": str,
+        "category": str,
+        "urgency": str,
+        "affected_users": int,
+        "priority": str,
+        "status": str,
+    }
+
+    # Check every ticket in the list.
+    for index, ticket in enumerate(tickets):
+        location = f"Ticket at position {index + 1}"
+
+        if not isinstance(ticket, dict):
+            errors.append(f"{location}: Expected a ticket object.")
+            continue
+
+        # Check required fields and their data types.
+        for field, expected_type in required_fields.items():
+            if field not in ticket:
+                errors.append(f"{location}: Missing '{field}'.")
+                continue
+
+            value = ticket[field]
+
+            # Reject True and False for integer fields.
+            if expected_type is int:
+                valid_type = type(value) is int
+            else:
+                valid_type = isinstance(value, expected_type)
+
+            if not valid_type:
+                errors.append(
+                    f"{location}, '{field}': Expected "
+                    f"{expected_type.__name__}, received "
+                    f"{type(value).__name__}."
+                )
+
+        # assigned_to must be a string or None.
+        if "assigned_to" not in ticket:
+            errors.append(f"{location}: Missing 'assigned_to'.")
+        elif (
+            ticket["assigned_to"] is not None
+            and not isinstance(ticket["assigned_to"], str)
+        ):
+            errors.append(
+                f"{location}, 'assigned_to': "
+                "Expected a string or null."
+            )
+
+        # Check that text fields are not empty.
+        for field in ["id", "title", "category"]:
+            value = ticket.get(field)
+
+            if isinstance(value, str) and not value.strip():
+                errors.append(f"{location}: '{field}' cannot be empty.")
+
+        # Check allowed urgency values.
+        urgency = ticket.get("urgency")
+        if isinstance(urgency, str):
+            if urgency not in ["low", "medium", "high"]:
+                errors.append(f"{location}: Invalid urgency '{urgency}'.")
+
+        # Check allowed priority values.
+        priority = ticket.get("priority")
+        if isinstance(priority, str):
+            if priority not in ["low", "medium", "high", "critical"]:
+                errors.append(f"{location}: Invalid priority '{priority}'.")
+
+        # Check allowed ticket statuses.
+        status = ticket.get("status")
+        if isinstance(status, str):
+            if status not in ["open", "in_progress", "resolved"]:
+                errors.append(f"{location}: Invalid status '{status}'.")
+
+        # The number of affected users must be positive.
+        affected_users = ticket.get("affected_users")
+        if type(affected_users) is int and affected_users <= 0:
+            errors.append(
+                f"{location}: 'affected_users' must be greater than zero."
+            )
+
+    # Report all detected problems together.
+    if errors:
+        raise ValueError(
+            "Ticket data validation failed:\n- "
+            + "\n- ".join(errors)
+        )
+
+    return True
+
+
+def save_tickets(tickets, file_path):
+    """Validate tickets and save them to a JSON file."""
+
+    # Never save invalid ticket data.
+    validate_ticket_data(tickets)
+
     path = Path(file_path)
 
     # Create the parent directory if it does not exist.
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Write the tickets as readable JSON.
+    # Write the validated tickets as readable JSON.
     with path.open("w", encoding="utf-8") as file:
         json.dump(tickets, file, indent=4)
 
+def repair_ticket_data(tickets):
+    """Allow users to correct invalid affected_users values."""
+
+    for index, ticket in enumerate(tickets):
+        # Skip entries that are not ticket dictionaries.
+        if not isinstance(ticket, dict):
+            continue
+
+        affected_users = ticket.get("affected_users")
+
+        # A valid value must be an integer, not a boolean, and greater than zero.
+        if (
+            type(affected_users) is int
+            and affected_users > 0
+        ):
+            continue
+
+        print(f"\nTicket ID: {ticket.get('id', 'Unknown')}")
+        print(f"Invalid affected_users value: {affected_users!r}")
+
+        while True:
+            correction = input(
+                "Enter the correct number of affected users "
+                "(or type 'skip' to stop): "
+            ).strip()
+
+            if correction.lower() == "skip":
+                raise ValueError(
+                    "Ticket repair cancelled. Your saved file was not changed."
+                )
+
+            try:
+                corrected_number = int(correction)
+            except ValueError:
+                print("Invalid input. Please enter a whole number.")
+                continue
+
+            if corrected_number <= 0:
+                print("The number must be greater than zero.")
+                continue
+
+            # Replace the incorrect value with the corrected integer.
+            tickets[index]["affected_users"] = corrected_number
+            break
+
+    # Validate every field before allowing the corrected data to be saved.
+    validate_ticket_data(tickets)
+
+    return tickets
 
 def load_tickets(file_path):
-    """Load tickets from JSON or return an empty list if missing."""
+    """Load and validate tickets from JSON."""
 
     path = Path(file_path)
 
-    # A missing file means the application has no saved tickets yet.
+    # If the file does not exist, start with an empty ticket list.
     if not path.exists():
         return []
 
     try:
-        # Open the file and convert its JSON into Python data.
+        # Open the file and read its contents.
         with path.open("r", encoding="utf-8") as file:
-            tickets = json.load(file)
+            content = file.read()
+
+        # If the file is empty or contains only spaces, return no tickets.
+        if not content.strip():
+            return []
+
+        # Convert the JSON text into Python data.
+        tickets = json.loads(content)
 
     except json.JSONDecodeError as error:
-        # Do not silently replace a malformed file with empty data.
+        # Do not overwrite a file containing invalid JSON.
         raise ValueError(
-            f"Cannot load tickets: {path} contains invalid JSON."
+            f"Cannot load tickets: {path} contains invalid JSON "
+            f"at line {error.lineno}, column {error.colno}."
         ) from error
 
-    # Make sure the top-level JSON value is a list.
-    if not isinstance(tickets, list):
-        raise ValueError("Invalid ticket data: expected a JSON list.")
+    except OSError as error:
+        raise ValueError(
+            f"Cannot read ticket file {path}: {error}"
+        ) from error
+
+           # Repair invalid affected_users values.
+    repair_ticket_data(tickets)
+
+    # Save the corrected data.
+    save_tickets(tickets, path)
 
     # Return the loaded tickets.
     return tickets

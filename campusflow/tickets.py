@@ -31,12 +31,20 @@ def validate_ticket(title, category, urgency, affected_users):
 
     category = category.strip().lower()
 
-    valid_categories = ["network", "hardware", "software", "other"]
+    # Standard categories are accepted directly.
+    valid_categories = ["Network", "Hardware", "Software", "Other"]
 
-    if category not in valid_categories:
-        raise ValueError(
-            "Category must be Network, Hardware, Software, or Other."
-        )
+    # Remove unnecessary spaces and standardize the category.
+    if not isinstance(category, str) or not category.strip():
+        raise ValueError("Category cannot be empty.")
+
+    category = category.strip()
+
+    # Standard categories should use consistent capitalization.
+    for valid_category in valid_categories:
+        if category.lower() == valid_category.lower():
+            category = valid_category
+            break
 
     if not isinstance(urgency, str):
         raise ValueError("Urgency must be text.")
